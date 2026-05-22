@@ -1,4 +1,4 @@
-# Psycholinguistics: Orthographic Neighborhood Density & EEG Data Analysis
+# Orthographic Neighborhood Density & EEG Data Analysis
 
 Python scripts for psycholinguistics research including orthographic neighborhood density analysis and EEG dataset downloading from OpenNeuro.
 
