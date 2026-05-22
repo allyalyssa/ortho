@@ -1,5 +1,5 @@
 """
-Psycholinguistics Project: Orthographic Neighborhood Density Analysis
+orthowm Project: Orthographic Neighborhood Density Analysis
 Generates 4-letter English nouns and calculates their orthographic neighborhood
 density using Levenshtein distance, then categorizes into high/low density groups.
 """

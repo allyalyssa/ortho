@@ -108,56 +108,30 @@ def create_epochs(raw, events_df):
     return epochs
 
 def compute_and_plot_erps(epochs):
-    """
-    Compute ERPs for each condition and plot comparison.
-    """
     print("\nComputing ERPs...")
-    
-    # Compute evoked responses for each condition
     evoked_high = epochs['high_interference'].average()
     evoked_low = epochs['low_interference'].average()
     
-    # Explicitly apply baseline correction to evokeds
     evoked_high.apply_baseline((-0.2, 0))
     evoked_low.apply_baseline((-0.2, 0))
     
-    print(f"High interference ERP: {len(evoked_high.data)} channels")
-    print(f"Low interference ERP: {len(evoked_low.data)} channels")
-    
-    # Plot comparison
-    print("\nGenerating ERP comparison plot...")
-    
-    # Focus on central/parietal channels (N400 is typically maximal at Pz, Cz)
     channels_to_plot = ['Cz', 'Pz', 'P3', 'P4']
     available_channels = [ch for ch in channels_to_plot if ch in epochs.ch_names]
     
-    if not available_channels:
-        available_channels = ['Cz', 'Pz']  # Default to these if others not available
-    
-    print(f"Plotting channels: {available_channels}")
-    
-    # Create comparison plot
     fig, axes = plt.subplots(len(available_channels), 1, figsize=(10, 4 * len(available_channels)))
     if len(available_channels) == 1:
         axes = [axes]
-    
+        
     for idx, ch in enumerate(available_channels):
         ax = axes[idx]
+        ch_idx = epochs.ch_names.index(ch)
         
-        # Get data in Volts and convert to microvolts
-        times = evoked_high.times * 1000  # Convert to ms
-        high_data_uv = evoked_high.data[epochs.ch_names.index(ch), :] * 1e6
-        low_data_uv = evoked_low.data[epochs.ch_names.index(ch), :] * 1e6
+        times = evoked_high.times * 1000
+        high_data_uv = evoked_high.data[ch_idx, :] * 1e6
+        low_data_uv = evoked_low.data[ch_idx, :] * 1e6
         
-        # Plot high interference
-        ax.plot(times, high_data_uv,
-                label='High Interference', color='red', linewidth=2)
-        
-        # Plot low interference
-        ax.plot(times, low_data_uv,
-                label='Low Interference', color='blue', linewidth=2)
-        
-        # Mark N400 window (300-500ms)
+        ax.plot(times, high_data_uv, label='High Interference', color='red', linewidth=2)
+        ax.plot(times, low_data_uv, label='Low Interference', color='blue', linewidth=2)
         ax.axvspan(300, 500, alpha=0.2, color='yellow', label='N400 Window')
         
         ax.set_xlabel('Time (ms)')
@@ -165,40 +139,23 @@ def compute_and_plot_erps(epochs):
         ax.set_title(f'ERP at {ch}: High vs Low Interference')
         ax.legend()
         ax.grid(True, alpha=0.3)
-    
+        
     plt.tight_layout()
+    plt.savefig('erp_comparison.png', dpi=150, bbox_inches='tight')
+    plt.close()
     
-    # Save plot
-    output_file = 'erp_comparison.png'
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"Saved ERP comparison plot to: {output_file}")
-    
-    # Also create a topographic plot for the N400 window
     try:
-        print("\nGenerating topographic plot for N400 window...")
-        # Compute difference wave
         evoked_diff = mne.combine_evoked([evoked_high, evoked_low], weights=[1, -1])
-        
-        # Apply baseline to difference wave
         evoked_diff.apply_baseline((-0.2, 0))
-        
-        # Plot topomap at 400ms using plot_topomap
         fig_topo = evoked_diff.plot_topomap(
-            times=[0.4],
-            ch_type='eeg',
-            time_unit='s',
-            show=False,
-            scalings={'eeg': 1e6}  # Convert to microvolts
+            times=[0.4], ch_type='eeg', time_unit='s', show=False, scalings={'eeg': 1e6}
         )
         fig_topo.suptitle('N400 Difference (High - Low Interference) at 400ms')
         plt.savefig('erp_topomap_n400.png', dpi=150, bbox_inches='tight')
-        print("Saved topographic plot to: erp_topomap_n400.png")
         plt.close(fig_topo)
     except Exception as e:
-        print(f"Could not create topographic plot: {e}")
-    
-    plt.close()
-    
+        print(f"Topomap error: {e}")
+        
     return evoked_high, evoked_low
 
 def main():

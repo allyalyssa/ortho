@@ -39,12 +39,12 @@ def create_synthetic_eeg():
     # Create synthetic data
     # Baseline: random noise + 1/f pink noise
     t = np.arange(n_times) / sfreq
-    data = np.random.randn(n_channels, n_times) * 5  # Random noise
+    data = np.random.randn(n_channels, n_times) * 1e-6  # Random noise in Volts
     
     # Add 1/f pink noise (more power at low frequencies)
     for i in range(1, 50):
         freq = i * 0.5
-        amplitude = 10 / freq
+        amplitude = 2e-6 / freq  # Amplitude in Volts
         data += amplitude * np.sin(2 * np.pi * freq * t) * np.random.randn(n_channels, n_times)
     
     # Add simulated ERP responses for each word event
@@ -56,11 +56,11 @@ def create_synthetic_eeg():
         erp_window = np.arange(-100, 500)  # -200ms to +800ms relative to onset
         erp_time = erp_window / sfreq
         
-        # N400: negative peak at 400ms
-        n400 = -5 * np.exp(-((erp_time - 0.4) ** 2) / (2 * 0.1 ** 2))
+        # N400: negative peak at 400ms (in Volts)
+        n400 = -5e-6 * np.exp(-((erp_time - 0.4) ** 2) / (2 * 0.1 ** 2))
         
-        # P200: positive peak at 200ms
-        p200 = 3 * np.exp(-((erp_time - 0.2) ** 2) / (2 * 0.08 ** 2))
+        # P200: positive peak at 200ms (in Volts)
+        p200 = 3e-6 * np.exp(-((erp_time - 0.2) ** 2) / (2 * 0.08 ** 2))
         
         # Combine ERP components
         erp = n400 + p200
