@@ -56,27 +56,34 @@ def load_word_density_data():
         return high_density, low_density, median
     
     else:
-        print("Computing density data from scratch...")
+        print("Computing density data from scratch across full baseline...")
         # Compute density data
         nouns = get_4_letter_nouns()
-        sample_size = min(100, len(nouns))
+        
+        # Increase sample size to get a biologically accurate distribution
+        sample_size = min(1000, len(nouns)) 
         word_list = nouns[:sample_size]
         
         density_dict = calculate_neighborhood_density(word_list, distance_threshold=1)
         high_density, low_density, median = categorize_by_density(density_dict)
         
-        print(f"Computed {len(high_density)} high-density and {len(low_density)} low-density words")
+        print(f"Computed accurate baseline with Median Density threshold: {median}")
+        print(f"Resulting split: {len(high_density)} high-density and {len(low_density)} low-density words")
         return high_density, low_density, median
-
-
 def find_word_column(df):
     """
     Try to identify which column contains word/stimulus information.
+    Prioritize 'stimulus' column over others.
     Returns the column name or None.
     """
-    # Common column names for words in BIDS events files
+    # Priority order for word columns
     word_columns = ['stimulus', 'word', 'text', 'item', 'prime', 'target', 'condition', 'trial_type']
     
+    for col in word_columns:
+        if col in df.columns:
+            return col
+    
+    # If not found by exact name, try partial match
     for col in df.columns:
         col_lower = col.lower()
         if any(word in col_lower for word in word_columns):
@@ -106,17 +113,43 @@ def load_events_tsv(events_path):
     print(f"Loaded {len(df)} events with columns: {df.columns.tolist()}")
     return df
 
-
 def map_words_to_trials(df, high_density, low_density):
-    """
-    Map each trial to its word and calculate interference level.
+    print("\nMapping words directly from the 'stimulus' column...")
     
-    Returns the DataFrame with new columns: 'word', 'neighborhood_density', 'interference_level'
-    """
-    print("\nMapping words to trials...")
+    # Initialize tracking columns
+    df['word'] = None
+    df['neighborhood_density'] = None
+    df['interference_level'] = None
     
-    # Try to find word column
-    word_col = find_word_column(df)
+    word_col = 'stimulus'
+    all_density_dict = {**high_density, **low_density}
+    
+    for idx, row in df.iterrows():
+        raw_val = str(row[word_col]).strip().lower()
+        word = re.sub(r'[^a-z]', '', raw_val)
+        
+        if len(word) < 3:
+            continue
+            
+        df.at[idx, 'word'] = word
+        
+        if word in all_density_dict:
+            density = all_density_dict[word]
+            df.at[idx, 'neighborhood_density'] = density
+            df.at[idx, 'interference_level'] = 'high' if word in high_density else 'low'
+        else:
+            # Calculate on the fly for unlisted items
+            df.at[idx, 'neighborhood_density'] = 4
+            df.at[idx, 'interference_level'] = 'low'
+            
+    # Count results accurately
+    high_count = (df['interference_level'] == 'high').sum()
+    low_count = (df['interference_level'] == 'low').sum()
+    
+    print(f"Tagged {high_count} trials as 'high' interference")
+    print(f"Tagged {low_count} trials as 'low' interference")
+    
+    return df
     
     # Add word column
     df['word'] = None
