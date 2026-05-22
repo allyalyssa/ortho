@@ -186,14 +186,14 @@ def check_essential_files(subject_path):
         print(f"  - {f.relative_to(subject_path)}")
     
     if eeg_files:
-        print("\n✓ Raw EEG data files present")
+        print("\nRaw EEG data files present")
     else:
-        print("\n✗ No raw EEG data files found")
+        print("\nNo raw EEG data files found")
     
     if events_files:
-        print("✓ Events TSV files present")
+        print("Events TSV files present")
     else:
-        print("✗ No events TSV files found")
+        print("No events TSV files found")
 
 
 def try_alternative_datasets(subject_id="01", target_dir="./data"):
@@ -221,10 +221,10 @@ def try_alternative_datasets(subject_id="01", target_dir="./data"):
             task_filter=None  # Download all files first
         )
         if result:
-            print(f"\n✓ Successfully downloaded from {dataset_id}")
+            print(f"\nSuccessfully downloaded from {dataset_id}")
             return result
     
-    print("\n✗ All alternative datasets failed")
+    print("\nAll alternative datasets failed")
     return None
 
 
