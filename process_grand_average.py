@@ -51,9 +51,25 @@ def process_single_subject(eeg_file, tagged_events=None):
     raw = mne.io.read_raw_fif(eeg_file, preload=True, verbose=False)
     print(f"  Loaded: {len(raw.ch_names)} channels, {raw.n_times} timepoints")
     
-    # Apply bandpass filter
-    print("  Applying bandpass filter (0.1 - 30 Hz)...")
-    raw_filtered = raw.copy().filter(l_freq=0.1, h_freq=30, verbose=False)
+    # Map generic channel names to standard 10-20 system for MNE sample dataset
+    channel_mapping = {
+        'EEG 001': 'Fp1', 'EEG 002': 'Fp2', 'EEG 003': 'F3', 'EEG 004': 'F4',
+        'EEG 005': 'C3', 'EEG 006': 'Cz', 'EEG 007': 'C4', 'EEG 008': 'P3',
+        'EEG 009': 'Pz', 'EEG 010': 'P4', 'EEG 011': 'O1', 'EEG 012': 'O2',
+        'EEG 013': 'F7', 'EEG 014': 'F8', 'EEG 015': 'T7', 'EEG 016': 'T8',
+        'EEG 017': 'P7', 'EEG 018': 'P8', 'EEG 019': 'Fz', 'EEG 020': 'FCz'
+    }
+    
+    # Rename channels if they match the mapping
+    current_names = raw.ch_names
+    new_names = [channel_mapping.get(ch, ch) for ch in current_names]
+    if new_names != current_names:
+        raw.rename_channels(dict(zip(current_names, new_names)))
+        print(f"  Mapped {len([c for c in current_names if c in channel_mapping])} channels to 10-20 system")
+    
+    # Apply bandpass filter (narrower range for smoother data)
+    print("  Applying bandpass filter (0.1 - 20 Hz)...")
+    raw_filtered = raw.copy().filter(l_freq=0.1, h_freq=20, verbose=False)
     
     # Load events
     if tagged_events is not None:
@@ -82,20 +98,20 @@ def process_single_subject(eeg_file, tagged_events=None):
         events_array = mne.find_events(raw_filtered, stim_channel='STI 014', verbose=False)
         event_id_dict = {'high_interference': 1, 'low_interference': 2}  # Placeholder
     
-    # Create epochs
-    print("  Creating epochs...")
+    # Create epochs with explicit baseline correction
+    print("  Creating epochs with baseline correction...")
     epochs = mne.Epochs(
         raw_filtered,
         events_array,
         event_id=event_id_dict,
         tmin=-0.2,
         tmax=0.8,
-        baseline=(-0.2, 0),
+        baseline=(-0.2, 0),  # Explicit baseline correction
         preload=True,
         verbose=False
     )
     
-    # Apply baseline correction
+    # Explicitly apply baseline correction again to ensure it's properly zeroed
     epochs.apply_baseline((-0.2, 0))
     
     print(f"  Created epochs: {len(epochs)} trials")
@@ -162,8 +178,8 @@ def plot_grand_average(grand_high, grand_low):
     else:
         all_channels = []
     
-    # Try to find central/parietal channels, otherwise use first few channels
-    channels_to_plot = ['Cz', 'Pz', 'P3', 'P4', 'EEG 001', 'EEG 002', 'EEG 003', 'EEG 004']
+    # Try to find central/parietal channels (standard 10-20 system)
+    channels_to_plot = ['Cz', 'Pz', 'P3', 'P4', 'Fz', 'Fp1', 'Fp2']
     available_channels = [ch for ch in channels_to_plot if ch in all_channels]
     
     if not available_channels:
