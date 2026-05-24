@@ -77,16 +77,16 @@ git pull
 
 - The `data/` directory is excluded from Git via `.gitignore` (EEG data files are large)
 - Only the scripts and documentation are tracked
-- You can download the EEG data again using `python download_verbal_eeg.py` on any machine
+- You can download the EEG data again using `python get_verbal_eeg.py` on any machine
 
 ## Current Repository Status
 
 Your repository contains:
-- ✅ `orthographic_density.py` - Orthographic neighborhood density analysis
-- ✅ `download_verbal_eeg.py` - EEG data download script
-- ✅ `requirements.txt` - Python dependencies
-- ✅ `README.md` - Project documentation
-- ✅ `DOWNLOAD_SUMMARY.md` - EEG data download summary
-- ✅ `.gitignore` - Excludes large data files
+- `orthographic_density.py` - Orthographic neighborhood density analysis
+- `get_verbal_eeg.py` - EEG data download script
+- `requirements.txt` - Python dependencies
+- `README.md` - Project documentation
+- `SUMMARY.md` - EEG data download summary
+- `.gitignore` - Excludes large data files
 
 Total: 6 files committed

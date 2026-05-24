@@ -14,10 +14,10 @@ def find_eeg_files():
     Scan the data directory to find all EEG files.
     """
     print("Scanning data directory for EEG files...")
-    data_dir = Path("./data")
+    data_dir = Path("./data/derivatives/preprocessed")
     
-    # Find all .fif files in the data directory
-    eeg_files = list(data_dir.rglob("*_eeg.fif"))
+    # Find all .fif files in the preprocessed directory
+    eeg_files = list(data_dir.rglob("*_ica_eeg.fif"))
     
     if not eeg_files:
         print("No EEG files found in data directory")
@@ -25,7 +25,7 @@ def find_eeg_files():
     
     print(f"Found {len(eeg_files)} EEG files:")
     for f in eeg_files:
-        print(f"  - {f}")
+        print(f"  - {f.name}")
     
     return eeg_files
 
@@ -46,10 +46,14 @@ def process_single_subject(eeg_file, tagged_events=None):
     """
     print(f"\nProcessing: {eeg_file.name}")
     
-    # Load raw data
-    print("  Loading raw data...")
-    raw = mne.io.read_raw_fif(eeg_file, preload=True, verbose=False)
-    print(f"  Loaded: {len(raw.ch_names)} channels, {raw.n_times} timepoints")
+    try:
+        # Load raw data
+        print("  Loading raw data...")
+        raw = mne.io.read_raw_fif(eeg_file, preload=True, verbose=False)
+        print(f"  Loaded: {len(raw.ch_names)} channels, {raw.n_times} timepoints")
+    except (ValueError, RuntimeError, Exception) as e:
+        print(f"  Skipping corrupted file: {e}")
+        return None, None
     
     # Map generic channel names to standard 10-20 system for MNE sample dataset
     channel_mapping = {
@@ -78,11 +82,11 @@ def process_single_subject(eeg_file, tagged_events=None):
         events_df = tagged_events.copy()
         events_df = events_df[events_df['interference_level'].notna()]
         
-        # Convert onset to sample indices
+        # Convert onset to sample indices (onset is in milliseconds, convert to seconds)
         sfreq = raw_filtered.info['sfreq']
         events_df['sample'] = (events_df['onset'] / 1000 * sfreq).astype(int)
         
-        # Create event array
+        # Create event array - map 'high'/'low' to event IDs
         event_id_map = {'high': 1, 'low': 2}
         events_df['event_id'] = events_df['interference_level'].map(event_id_map)
         
@@ -243,8 +247,13 @@ def main():
     all_low_evokeds = []
     
     # Step 4: Process each file
+    skipped_files = 0
     for eeg_file in eeg_files:
         evoked_high, evoked_low = process_single_subject(eeg_file, tagged_events)
+        
+        if evoked_high is None and evoked_low is None:
+            skipped_files += 1
+            continue
         
         if evoked_high is not None:
             all_high_evokeds.append(evoked_high)
@@ -262,7 +271,9 @@ def main():
     print("\n" + "=" * 70)
     print("GRAND AVERAGE COMPLETE")
     print("=" * 70)
-    print(f"\nTotal subjects processed: {len(eeg_files)}")
+    print(f"\nTotal files found: {len(eeg_files)}")
+    print(f"Files successfully processed: {len(eeg_files) - skipped_files}")
+    print(f"Files skipped (corrupted): {skipped_files}")
     print(f"High interference evokeds: {len(all_high_evokeds)}")
     print(f"Low interference evokeds: {len(all_low_evokeds)}")
     print("\nOutput file:")
