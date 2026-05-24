@@ -32,8 +32,8 @@ ENV/
 *.swo
 *~
 
-# Data files (large downloaded datasets)
-data/
+# Data files (large downloaded datasets) - now tracked with Git LFS
+# data/
 eeg_data/
 *.fif
 *.fif.gz
