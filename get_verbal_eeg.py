@@ -4,66 +4,40 @@ Downloads a single subject's raw EEG data and events.tsv in BIDS format.
 Targets language/memory datasets like ERP-CORE (N400) or verbal n-back tasks.
 """
 
+import logging
 import openneuro
 from openneuro import download
-import os
 from pathlib import Path
 import shutil
 import pandas as pd
 
+logger = logging.getLogger(__name__)
+
 
 def download_single_subject_eeg(
-    dataset_id="ds000247",  # ERP-CORE dataset (includes N400 semantic processing)
-    subject_id="01",
-    target_dir="./data",
-    tag="1.0.2",  # Use specific version instead of "latest"
-    task_filter=None  # Optional: filter by specific task (e.g., "N400")
-):
-    """
-    Download a single subject's EEG data from OpenNeuro in BIDS format.
+    dataset_id: str = "ds000247",
+    subject_id: str = "01",
+    target_dir: str = "./data",
+    tag: str = "1.0.2",
+    task_filter: str | None = None
+) -> str | None:
+    """Download a single subject's EEG data from OpenNeuro in BIDS format."""
     
-    Parameters:
-    -----------
-    dataset_id : str
-        OpenNeuro dataset ID (default: ds000247 for ERP-CORE with N400 task)
-    subject_id : str
-        Subject ID to download (e.g., "01", "02")
-    target_dir : str
-        Local directory to save the downloaded data
-    tag : str
-        Dataset version tag (default: "1.0.2" for ERP-CORE)
-    task_filter : str or None
-        Optional filter for specific task (e.g., "N400", "oddball")
-    
-    Returns:
-    --------
-    str : Path to downloaded subject data
-    """
-    
-    # Create target directory structure
     target_path = Path(target_dir)
     target_path.mkdir(parents=True, exist_ok=True)
     
-    # Define include pattern for single subject
-    # This downloads only the specified subject's data
     if task_filter:
         include_pattern = f"sub-{subject_id}/**/*{task_filter}**"
     else:
         include_pattern = f"sub-{subject_id}/**"
     
-    print("=" * 70)
-    print("Downloading Verbal Memory/Word Recognition EEG Dataset")
-    print("=" * 70)
-    print(f"\nDataset ID: {dataset_id}")
-    print(f"Subject: sub-{subject_id}")
-    print(f"Target directory: {target_dir}")
-    print(f"BIDS format: Yes")
-    print(f"Include pattern: {include_pattern}")
+    logger.info(f"Dataset ID: {dataset_id}")
+    logger.info(f"Subject: sub-{subject_id}")
+    logger.info(f"Target directory: {target_dir}")
+    logger.info(f"Include pattern: {include_pattern}")
     
-    # Download the dataset
-    print("\n[Step 1] Connecting to OpenNeuro...")
-    print("[Step 2] Downloading subject data (this may take several minutes)...")
-    print(f"[Step 3] Downloading raw EEG files and events.tsv for sub-{subject_id}...")
+    logger.info("Connecting to OpenNeuro...")
+    logger.info("Downloading subject data (this may take several minutes)...")
     
     try:
         download(
@@ -73,76 +47,62 @@ def download_single_subject_eeg(
             tag=tag
         )
         
-        print("\n[Step 4] Download completed successfully!")
+        logger.info("Download completed successfully!")
         
-        # Verify the download and organize structure
         downloaded_path = target_path / dataset_id
         subject_target = target_path / f"sub-{subject_id}"
         
-        # Check if data was downloaded directly to target_path (BIDS format)
         if (target_path / f"sub-{subject_id}").exists():
-            print(f"\nData already organized at: {subject_target.absolute()}")
-            print("\nDownloaded files:")
+            logger.info(f"Data already organized at: {subject_target.absolute()}")
             list_files_recursive(subject_target)
             check_essential_files(subject_target)
             return str(subject_target)
         
-        # Check if data was downloaded to dataset_id folder
         elif downloaded_path.exists():
             subject_source = downloaded_path / f"sub-{subject_id}"
             
             if subject_source.exists():
-                # Move subject folder to the requested location
                 if subject_target.exists():
                     shutil.rmtree(subject_target)
                 shutil.move(str(subject_source), str(subject_target))
                 
-                # Move other BIDS files if they exist
                 for file in ['dataset_description.json', 'participants.tsv', 'participants.json', 'README', 'CHANGES']:
                     src = downloaded_path / file
                     if src.exists():
                         shutil.move(str(src), str(target_path / file))
                 
-                # Remove the empty dataset folder if it only contained this subject
                 try:
                     remaining_files = list(downloaded_path.iterdir())
                     if len(remaining_files) == 0:
                         downloaded_path.rmdir()
                     elif len(remaining_files) == 1 and remaining_files[0].name == '.git':
                         shutil.rmtree(downloaded_path)
-                except:
+                except OSError:
                     pass
                 
-                print(f"\nData organized at: {subject_target.absolute()}")
-                
-                # List downloaded files
-                print("\nDownloaded files:")
+                logger.info(f"Data organized at: {subject_target.absolute()}")
                 list_files_recursive(subject_target)
-                
-                # Verify essential files
                 check_essential_files(subject_target)
-                
                 return str(subject_target)
             else:
-                print(f"\nWarning: Subject folder sub-{subject_id} not found in download")
-                print("Downloaded structure:")
+                logger.warning(f"Subject folder sub-{subject_id} not found in download")
                 list_files_recursive(downloaded_path)
                 return str(downloaded_path)
         else:
-            print("\nWarning: Download completed but directory not found")
+            logger.warning("Download completed but directory not found")
             return None
             
     except Exception as e:
-        print(f"\nError during download: {e}")
-        print("\nTroubleshooting tips:")
-        print("1. Check your internet connection")
-        print("2. Verify the dataset ID is correct")
-        print("3. Ensure you have write permissions for the target directory")
-        print("4. The dataset might not exist or be publicly accessible")
+        logger.error(f"Error during download: {e}")
+        logger.warning("Troubleshooting tips:")
+        logger.warning("1. Check your internet connection")
+        logger.warning("2. Verify the dataset ID is correct")
+        logger.warning("3. Ensure you have write permissions for the target directory")
+        logger.warning("4. The dataset might not exist or be publicly accessible")
         return None
 
 
-def list_files_recursive(path, max_depth=4, current_depth=0):
+def list_files_recursive(path: Path, max_depth: int = 4, current_depth: int = 0) -> None:
     """Recursively list files in a directory with indentation."""
     if current_depth > max_depth:
         return
@@ -151,21 +111,18 @@ def list_files_recursive(path, max_depth=4, current_depth=0):
         for item in sorted(path.iterdir()):
             indent = "  " * current_depth
             if item.is_dir():
-                print(f"{indent}{item.name}/")
+                logger.info(f"{indent}{item.name}/")
                 list_files_recursive(item, max_depth, current_depth + 1)
             else:
-                print(f"{indent}{item.name}")
+                logger.info(f"{indent}{item.name}")
     except PermissionError:
-        print(f"  " * current_depth + "[Permission denied]")
+        logger.warning(f"{indent}[Permission denied]")
 
 
-def check_essential_files(subject_path):
+def check_essential_files(subject_path: Path) -> None:
     """Check if essential EEG files are present."""
-    print("\n" + "=" * 70)
-    print("Checking for essential files:")
-    print("=" * 70)
+    logger.info("Checking for essential files:")
     
-    # Look for raw EEG data files
     eeg_extensions = ['.fif', '.edf', '.bdf', '.vhdr', '.set', '.eeg']
     eeg_files = []
     events_files = []
@@ -177,34 +134,29 @@ def check_essential_files(subject_path):
             if file.name.endswith('_events.tsv'):
                 events_files.append(file)
     
-    print(f"\nRaw EEG data files found: {len(eeg_files)}")
+    logger.info(f"Raw EEG data files found: {len(eeg_files)}")
     for f in eeg_files:
-        print(f"  - {f.relative_to(subject_path)}")
+        logger.info(f"  - {f.relative_to(subject_path)}")
     
-    print(f"\nEvents TSV files found: {len(events_files)}")
+    logger.info(f"Events TSV files found: {len(events_files)}")
     for f in events_files:
-        print(f"  - {f.relative_to(subject_path)}")
+        logger.info(f"  - {f.relative_to(subject_path)}")
     
     if eeg_files:
-        print("\nRaw EEG data files present")
+        logger.info("Raw EEG data files present")
     else:
-        print("\nNo raw EEG data files found")
+        logger.warning("No raw EEG data files found")
     
     if events_files:
-        print("Events TSV files present")
+        logger.info("Events TSV files present")
     else:
-        print("No events TSV files found")
+        logger.warning("No events TSV files found")
 
 
-def try_alternative_datasets(subject_id="01", target_dir="./data"):
-    """
-    Try alternative verbal memory/word recognition datasets if primary fails.
-    """
-    print("\n" + "=" * 70)
-    print("Trying alternative datasets...")
-    print("=" * 70)
+def try_alternative_datasets(subject_id: str = "01", target_dir: str = "./data") -> str | None:
+    """Try alternative verbal memory/word recognition datasets if primary fails."""
+    logger.info("Trying alternative datasets...")
     
-    # List of alternative datasets to try with their version tags
     alternatives = [
         ("ds003620", "1.1.1", "Language production and comprehension (oddball)"),
         ("ds002410", "1.0.0", "EEG resting state"),
@@ -212,7 +164,7 @@ def try_alternative_datasets(subject_id="01", target_dir="./data"):
     ]
     
     for dataset_id, tag, description in alternatives:
-        print(f"\nTrying {dataset_id} (tag: {tag}): {description}")
+        logger.info(f"Trying {dataset_id} (tag: {tag}): {description}")
         result = download_single_subject_eeg(
             dataset_id=dataset_id,
             subject_id=subject_id,
@@ -221,36 +173,22 @@ def try_alternative_datasets(subject_id="01", target_dir="./data"):
             task_filter=None  # Download all files first
         )
         if result:
-            print(f"\nSuccessfully downloaded from {dataset_id}")
+            logger.info(f"Successfully downloaded from {dataset_id}")
             return result
     
-    print("\nAll alternative datasets failed")
+    logger.warning("All alternative datasets failed")
     return None
 
 
-def main():
-    """
-    Main function to download verbal memory EEG data.
-    """
-    print("=" * 70)
-    print("VERBAL MEMORY/WORD RECOGNITION EEG DATA DOWNLOADER")
-    print("=" * 70)
-    print("\nThis script downloads a single subject's EEG data from OpenNeuro")
-    print("for verbal working memory or word recognition tasks.")
-    print("\nPrimary target: ERP-CORE (ds000247) - N400 semantic processing task")
-    print("Alternatives: Verbal n-back, language production, reading tasks")
+def main() -> None:
+    """Main function to download verbal memory EEG data."""
+    logging.basicConfig(level=logging.INFO)
     
-    # Try primary dataset first (ERP-CORE with N400)
-    print("\n" + "=" * 70)
-    print("Attempting to download from primary dataset...")
-    print("=" * 70)
+    logger.info("Attempting to download from primary dataset...")
     
-    # Since OpenNeuro datasets are having issues, create synthetic word recognition data
-    print("\nOpenNeuro datasets unavailable. Creating synthetic word recognition data...")
-    print("This will create a mock events.tsv with words from our density lists.")
-    print("You can replace this with real data later.")
+    logger.info("OpenNeuro datasets unavailable. Creating synthetic word recognition data...")
+    logger.info("This will create a mock events.tsv with words from our density lists.")
     
-    # Create synthetic data directory structure
     data_dir = Path("./data")
     data_dir.mkdir(exist_ok=True)
     subject_dir = data_dir / "sub-01"
@@ -258,7 +196,6 @@ def main():
     eeg_dir = subject_dir / "eeg"
     eeg_dir.mkdir(exist_ok=True)
     
-    # Create synthetic events.tsv with words from density lists
     from orthographic_density import get_4_letter_nouns, calculate_neighborhood_density, categorize_by_density
     
     nouns = get_4_letter_nouns()
@@ -290,39 +227,24 @@ def main():
     events_file = eeg_dir / "sub-01_task-wordrecognition_events.tsv"
     events_df.to_csv(events_file, sep='\t', index=False)
     
-    print(f"Created synthetic events file: {events_file}")
-    print(f"Contains {len(events_df)} word trials")
-    print(f"Words: {events_df['stimulus'].head(10).tolist()}")
+    logger.info(f"Created synthetic events file: {events_file}")
+    logger.info(f"Contains {len(events_df)} word trials")
+    logger.info(f"Words: {events_df['stimulus'].head(10).tolist()}")
     
     result = str(subject_dir)
     
-    # If primary fails, try alternatives
-    # Commented out to force ERP-CORE download
-    # if not result:
-    #     print("\nPrimary dataset download failed. Trying alternatives...")
-    #     result = try_alternative_datasets(subject_id="01", target_dir="./data")
-    
     if result:
-        print("\n" + "=" * 70)
-        print("DOWNLOAD SUCCESSFUL!")
-        print("=" * 70)
-        print(f"\nDownloaded data location: {result}")
-        print("\nNext steps:")
-        print("1. Review the downloaded BIDS structure")
-        print("2. Use MNE-Python to load the EEG data:")
-        print("   import mne")
-        print("   raw = mne.io.read_raw_bids(...)")
-        print("3. Map word trials from events.tsv to EEG epochs")
-        print("4. Analyze brain responses to different word conditions")
+        logger.info(f"Downloaded data location: {result}")
+        logger.info("Next steps:")
+        logger.info("1. Review the downloaded BIDS structure")
+        logger.info("2. Use MNE-Python to load the EEG data")
+        logger.info("3. Map word trials from events.tsv to EEG epochs")
+        logger.info("4. Analyze brain responses to different word conditions")
     else:
-        print("\n" + "=" * 70)
-        print("DOWNLOAD FAILED")
-        print("=" * 70)
-        print("\nPlease check:")
-        print("1. Internet connection")
-        print("2. Dataset availability on OpenNeuro")
-        print("3. Write permissions for target directory")
-        print("\nYou can also browse datasets at: https://openneuro.org")
+        logger.warning("Please check:")
+        logger.warning("1. Internet connection")
+        logger.warning("2. Dataset availability on OpenNeuro")
+        logger.warning("3. Write permissions for target directory")
 
 
 if __name__ == "__main__":
