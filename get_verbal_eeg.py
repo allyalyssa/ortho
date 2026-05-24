@@ -17,7 +17,7 @@ def download_single_subject_eeg(
     dataset_id: str = "ds000247",
     subject_id: str = "01",
     target_dir: str = "./data",
-    tag: str = "1.0.2",
+    tag: str = "2.0.0",
     task_filter: str | None = None
 ) -> str | None:
     """Download a single subject's EEG data from OpenNeuro in BIDS format."""
@@ -184,9 +184,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     
     dataset_id = "ds000247"
-    tag = "1.0.2"
+    tag = "2.0.0"
     target_dir = "./data"
-    total_subjects = 1
+    total_subjects = 40
     
     logger.info(f"Downloading ERP-CORE dataset {dataset_id} (tag: {tag})")
     logger.info(f"Target: {total_subjects} subjects")
