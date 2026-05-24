@@ -184,7 +184,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     
     dataset_id = "ds000247"
-    tag = "2.0.0"
+    tag = "1.0.2"
     target_dir = "./data"
     total_subjects = 40
     
