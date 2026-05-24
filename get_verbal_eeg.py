@@ -1,7 +1,6 @@
 """
-Download Verbal Working Memory/Word Recognition EEG Dataset from OpenNeuro
-Downloads a single subject's raw EEG data and events.tsv in BIDS format.
-Targets language/memory datasets like ERP-CORE (N400) or verbal n-back tasks.
+Download ERP-CORE EEG Dataset from OpenNeuro
+Downloads the ERP-CORE dataset (ds003247) for all 40 subjects in BIDS format.
 """
 
 import logging
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def download_single_subject_eeg(
-    dataset_id: str = "ds000247",
+    dataset_id: str = "ds003247",
     subject_id: str = "01",
     target_dir: str = "./data",
     tag: str = "1.0.2",
@@ -181,70 +180,58 @@ def try_alternative_datasets(subject_id: str = "01", target_dir: str = "./data")
 
 
 def main() -> None:
-    """Main function to download verbal memory EEG data."""
+    """Download ERP-CORE dataset (ds003247) for all 40 subjects."""
     logging.basicConfig(level=logging.INFO)
     
-    logger.info("Attempting to download from primary dataset...")
+    dataset_id = "ds003247"
+    tag = "1.0.2"
+    target_dir = "./data"
+    total_subjects = 40
     
-    logger.info("OpenNeuro datasets unavailable. Creating synthetic word recognition data...")
-    logger.info("This will create a mock events.tsv with words from our density lists.")
+    logger.info(f"Downloading ERP-CORE dataset {dataset_id} (tag: {tag})")
+    logger.info(f"Target: {total_subjects} subjects")
     
-    data_dir = Path("./data")
-    data_dir.mkdir(exist_ok=True)
-    subject_dir = data_dir / "sub-01"
-    subject_dir.mkdir(exist_ok=True)
-    eeg_dir = subject_dir / "eeg"
-    eeg_dir.mkdir(exist_ok=True)
+    data_dir = Path(target_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
     
-    from orthographic_density import get_4_letter_nouns, calculate_neighborhood_density, categorize_by_density
+    successful_downloads = 0
+    skipped_subjects = 0
+    failed_downloads = 0
     
-    nouns = get_4_letter_nouns()
-    sample_size = min(100, len(nouns))
-    word_list = nouns[:sample_size]
-    density_dict = calculate_neighborhood_density(word_list, distance_threshold=1)
-    high_density, low_density, median = categorize_by_density(density_dict)
+    for i in range(1, total_subjects + 1):
+        subject_id = f"{i:02d}"
+        subject_path = data_dir / f"sub-{subject_id}"
+        
+        if subject_path.exists():
+            logger.info(f"Skipping sub-{subject_id} (already exists)")
+            skipped_subjects += 1
+            continue
+        
+        logger.info(f"Downloading sub-{subject_id} ({i}/{total_subjects})...")
+        
+        result = download_single_subject_eeg(
+            dataset_id=dataset_id,
+            subject_id=subject_id,
+            target_dir=target_dir,
+            tag=tag,
+            task_filter=None
+        )
+        
+        if result:
+            successful_downloads += 1
+            logger.info(f"Successfully downloaded sub-{subject_id}")
+        else:
+            failed_downloads += 1
+            logger.warning(f"Failed to download sub-{subject_id}")
     
-    # Create events with words
-    import random
-    events_data = []
-    onset = 1000
-    
-    # Mix high and low density words
-    all_words = list(high_density.keys()) + list(low_density.keys())
-    random.shuffle(all_words)
-    
-    for i, word in enumerate(all_words[:50]):  # Use 50 trials
-        events_data.append({
-            'onset': onset,
-            'duration': 500,
-            'trial_type': f'word_{word}',
-            'stimulus': word
-        })
-        onset += 2000  # 2 seconds between trials
-    
-    # Save as TSV
-    events_df = pd.DataFrame(events_data)
-    events_file = eeg_dir / "sub-01_task-wordrecognition_events.tsv"
-    events_df.to_csv(events_file, sep='\t', index=False)
-    
-    logger.info(f"Created synthetic events file: {events_file}")
-    logger.info(f"Contains {len(events_df)} word trials")
-    logger.info(f"Words: {events_df['stimulus'].head(10).tolist()}")
-    
-    result = str(subject_dir)
-    
-    if result:
-        logger.info(f"Downloaded data location: {result}")
-        logger.info("Next steps:")
-        logger.info("1. Review the downloaded BIDS structure")
-        logger.info("2. Use MNE-Python to load the EEG data")
-        logger.info("3. Map word trials from events.tsv to EEG epochs")
-        logger.info("4. Analyze brain responses to different word conditions")
-    else:
-        logger.warning("Please check:")
-        logger.warning("1. Internet connection")
-        logger.warning("2. Dataset availability on OpenNeuro")
-        logger.warning("3. Write permissions for target directory")
+    logger.info("=" * 70)
+    logger.info("DOWNLOAD SUMMARY")
+    logger.info("=" * 70)
+    logger.info(f"Total subjects: {total_subjects}")
+    logger.info(f"Successfully downloaded: {successful_downloads}")
+    logger.info(f"Skipped (already exists): {skipped_subjects}")
+    logger.info(f"Failed: {failed_downloads}")
+    logger.info("=" * 70)
 
 
 if __name__ == "__main__":
