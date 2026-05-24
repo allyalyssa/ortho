@@ -4,28 +4,25 @@ Merges linguistic baseline (orthographic density) with experimental timeline
 from BIDS events.tsv to add interference_level tags for each word trial.
 """
 
+import logging
 import pandas as pd
 import numpy as np
 from pathlib import Path
 import json
 import re
+from rapidfuzz.distance import Levenshtein
 
-# Import functions from orthographic_density module
-import sys
-sys.path.append('.')
-from orthographic_density import get_4_letter_nouns, levenshtein_distance, calculate_neighborhood_density, categorize_by_density
+logger = logging.getLogger(__name__)
+
+from orthographic_density import get_4_letter_nouns, calculate_neighborhood_density, categorize_by_density
 
 
-def load_word_density_data():
-    """
-    Load or compute orthographic neighborhood density data.
-    Returns dictionaries for high_density and low_density words.
-    """
-    # Try to load from saved results file
+def load_word_density_data() -> tuple[dict[str, int], dict[str, int], float]:
+    """Load or compute orthographic neighborhood density data."""
     results_file = Path('neighborhood_density_results.txt')
     
     if results_file.exists():
-        print("Loading existing density data from neighborhood_density_results.txt...")
+        logger.info("Loading existing density data from neighborhood_density_results.txt...")
         high_density = {}
         low_density = {}
         median = None
@@ -52,11 +49,11 @@ def load_word_density_data():
                     else:
                         low_density[word] = density
         
-        print(f"Loaded {len(high_density)} high-density and {len(low_density)} low-density words")
+        logger.info(f"Loaded {len(high_density)} high-density and {len(low_density)} low-density words")
         return high_density, low_density, median
     
     else:
-        print("Computing density data from scratch across full baseline...")
+        logger.info("Computing density data from scratch across full baseline...")
         # Compute density data
         nouns = get_4_letter_nouns()
         
@@ -67,15 +64,11 @@ def load_word_density_data():
         density_dict = calculate_neighborhood_density(word_list, distance_threshold=1)
         high_density, low_density, median = categorize_by_density(density_dict)
         
-        print(f"Computed accurate baseline with Median Density threshold: {median}")
-        print(f"Resulting split: {len(high_density)} high-density and {len(low_density)} low-density words")
+        logger.info(f"Computed accurate baseline with Median Density threshold: {median}")
+        logger.info(f"Resulting split: {len(high_density)} high-density and {len(low_density)} low-density words")
         return high_density, low_density, median
-def find_word_column(df):
-    """
-    Try to identify which column contains word/stimulus information.
-    Prioritize 'stimulus' column over others.
-    Returns the column name or None.
-    """
+def find_word_column(df: pd.DataFrame) -> str | None:
+    """Identify which column contains word/stimulus information."""
     # Priority order for word columns
     word_columns = ['stimulus', 'word', 'text', 'item', 'prime', 'target', 'condition', 'trial_type']
     
@@ -92,11 +85,8 @@ def find_word_column(df):
     return None
 
 
-def extract_words_from_trial_type(trial_type):
-    """
-    Try to extract actual words from trial_type column if they're embedded.
-    For example, 'word_cat' or 'CAT' etc.
-    """
+def extract_words_from_trial_type(trial_type: str) -> str | None:
+    """Extract actual words from trial_type column if they're embedded."""
     # Try to find alphabetic sequences that might be words
     words = re.findall(r'\b[a-zA-Z]{3,}\b', str(trial_type))
     if words:
@@ -104,17 +94,16 @@ def extract_words_from_trial_type(trial_type):
     return None
 
 
-def load_events_tsv(events_path):
-    """
-    Load the events.tsv file into a DataFrame.
-    """
-    print(f"Loading events from {events_path}...")
+def load_events_tsv(events_path: Path) -> pd.DataFrame:
+    """Load the events.tsv file into a DataFrame."""
+    logger.info(f"Loading events from {events_path}...")
     df = pd.read_csv(events_path, sep='\t')
-    print(f"Loaded {len(df)} events with columns: {df.columns.tolist()}")
+    logger.info(f"Loaded {len(df)} events with columns: {df.columns.tolist()}")
     return df
 
-def map_words_to_trials(df, high_density, low_density):
-    print("\nMapping words directly from the 'stimulus' column...")
+def map_words_to_trials(df: pd.DataFrame, high_density: dict[str, int], low_density: dict[str, int]) -> pd.DataFrame:
+    """Map words to trials and calculate interference levels."""
+    logger.info("Mapping words directly from the 'stimulus' column...")
     
     # Initialize tracking columns
     df['word'] = None
@@ -199,81 +188,61 @@ def map_words_to_trials(df, high_density, low_density):
             else:
                 df.at[idx, 'interference_level'] = 'low'
         elif word:
-            # Word not in our density list, calculate on the fly
-            print(f"Word '{word}' not in density list, skipping...")
+            logger.warning(f"Word '{word}' not in density list, skipping...")
     
-    # Count interference levels
     high_count = (df['interference_level'] == 'high').sum()
     low_count = (df['interference_level'] == 'low').sum()
     
-    print(f"Tagged {high_count} trials as 'high' interference")
-    print(f"Tagged {low_count} trials as 'low' interference")
+    logger.info(f"Tagged {high_count} trials as 'high' interference")
+    logger.info(f"Tagged {low_count} trials as 'low' interference")
     
     return df
 
 
-def save_tagged_events(df, output_path='tagged_events.csv'):
-    """
-    Save the tagged events DataFrame to CSV.
-    """
-    print(f"\nSaving tagged events to {output_path}...")
+def save_tagged_events(df: pd.DataFrame, output_path: str = 'tagged_events.csv') -> None:
+    """Save the tagged events DataFrame to CSV."""
+    logger.info(f"Saving tagged events to {output_path}...")
     df.to_csv(output_path, index=False)
-    print(f"Saved {len(df)} rows to {output_path}")
+    logger.info(f"Saved {len(df)} rows to {output_path}")
 
 
-def main():
-    """
-    Main function to tag EEG events with orthographic neighborhood density.
-    """
-    print("=" * 70)
-    print("TAG EEG EVENTS WITH ORTHOGRAPHIC NEIGHBORHOOD DENSITY")
-    print("=" * 70)
-    
-    # Step 1: Load density data
-    print("\n[Step 1] Loading orthographic neighborhood density data...")
+def main() -> None:
+    """Main function to tag EEG events with orthographic neighborhood density."""
+    logging.basicConfig(level=logging.INFO)
     high_density, low_density, median = load_word_density_data()
     
-    # Step 2: Find and load events.tsv
-    print("\n[Step 2] Finding events.tsv file...")
+    logger.info("Finding events.tsv file...")
     data_dir = Path("./data")
     event_files = list(data_dir.rglob("*_events.tsv"))
     
     if not event_files:
-        print("Could not find an events.tsv file in the data/ folder!")
+        logger.warning("Could not find an events.tsv file in the data/ folder!")
         return
     
     events_path = event_files[0]
-    print(f"Found events file: {events_path}")
+    logger.info(f"Found events file: {events_path}")
     
-    # Step 3: Load events
-    print("\n[Step 3] Loading events...")
+    logger.info("Loading events...")
     df = load_events_tsv(events_path)
     
-    # Step 4: Map words to trials
-    print("\n[Step 4] Mapping words to trials and calculating interference levels...")
+    logger.info("Mapping words to trials and calculating interference levels...")
     df_tagged = map_words_to_trials(df, high_density, low_density)
     
-    # Step 5: Save results
-    print("\n[Step 5] Saving tagged events...")
+    logger.info("Saving tagged events...")
     save_tagged_events(df_tagged, 'tagged_events.csv')
     
-    # Display summary
-    print("\n" + "=" * 70)
-    print("SUMMARY")
-    print("=" * 70)
-    print(f"\nTotal trials: {len(df_tagged)}")
-    print(f"Trials with words: {df_tagged['word'].notna().sum()}")
-    print(f"High interference trials: {(df_tagged['interference_level'] == 'high').sum()}")
-    print(f"Low interference trials: {(df_tagged['interference_level'] == 'low').sum()}")
+    logger.info(f"Total trials: {len(df_tagged)}")
+    logger.info(f"Trials with words: {df_tagged['word'].notna().sum()}")
+    logger.info(f"High interference trials: {(df_tagged['interference_level'] == 'high').sum()}")
+    logger.info(f"Low interference trials: {(df_tagged['interference_level'] == 'low').sum()}")
     
-    # Show sample of tagged data
     if df_tagged['word'].notna().sum() > 0:
-        print("\nSample of tagged events:")
+        logger.info("Sample of tagged events:")
         sample_cols = ['onset', 'trial_type', 'word', 'neighborhood_density', 'interference_level']
         available_cols = [col for col in sample_cols if col in df_tagged.columns]
-        print(df_tagged[available_cols].head(10).to_string(index=False))
+        logger.info(df_tagged[available_cols].head(10).to_string(index=False))
     
-    print("\nDone! Check 'tagged_events.csv' for the full results.")
+    logger.info("Done! Check 'tagged_events.csv' for the full results.")
 
 
 if __name__ == "__main__":
