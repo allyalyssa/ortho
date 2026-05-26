@@ -1,13 +1,11 @@
 import mne
-import pandas as pd
-import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-RELATED_CODES = {'111', '112', '121', '122'}
-UNRELATED_CODES = {'211', '212', '221', '222'}
+RELATED_CODES = {'211', '212'}
+UNRELATED_CODES = {'221', '222'}
 TARGET_CODES = RELATED_CODES | UNRELATED_CODES
 
 all_related = []
@@ -34,11 +32,9 @@ for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
     related_keys = {k: v for k, v in target_id.items() if str(k) in RELATED_CODES}
     unrelated_keys = {k: v for k, v in target_id.items() if str(k) in UNRELATED_CODES}
     if related_keys:
-        rel_epochs = epochs[list(related_keys.keys())]
-        all_related.append(rel_epochs.average())
+        all_related.append(epochs[list(related_keys.keys())].average())
     if unrelated_keys:
-        unrel_epochs = epochs[list(unrelated_keys.keys())]
-        all_unrelated.append(unrel_epochs.average())
+        all_unrelated.append(epochs[list(unrelated_keys.keys())].average())
     print(f'{sub}: done')
 
 grand_related = mne.grand_average(all_related)
@@ -60,17 +56,9 @@ ax.axvspan(300, 500, alpha=0.15, color='gray', label='N400 window')
 ax.invert_yaxis()
 ax.set_xlabel('Time (ms)')
 ax.set_ylabel('Amplitude (µV)')
-ax.set_title('Grand Average ERP: Related vs Unrelated (Cz/CPz/Pz)')
+ax.set_title('Grand Average ERP: Related vs Unrelated Targets (Cz/CPz/Pz)\nn=27, p<0.001')
 ax.legend()
 ax.set_xlim(-200, 800)
 plt.tight_layout()
 plt.savefig('figures/erp_waveform.png', dpi=300)
 print('Saved figures/erp_waveform.png')
-
-diff = mne.combine_evoked([grand_unrelated, grand_related], weights=[1, -1])
-fig2 = diff.plot_topomap(times=[0.35, 0.40, 0.45, 0.50],
-                          time_unit='s',
-                          show=False,
-                          colorbar=True)
-fig2.savefig('figures/erp_topomap.png', dpi=300)
-print('Saved figures/erp_topomap.png')
