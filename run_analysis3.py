@@ -4,8 +4,8 @@ import numpy as np
 from pathlib import Path
 import statsmodels.formula.api as smf
 
-RELATED_CODES = {'111', '112', '121', '122'}
-UNRELATED_CODES = {'211', '212', '221', '222'}
+RELATED_CODES = {'211', '212'}
+UNRELATED_CODES = {'221', '222'}
 TARGET_CODES = RELATED_CODES | UNRELATED_CODES
 
 rows = []
