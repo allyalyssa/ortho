@@ -5,11 +5,16 @@ import numpy as np
 from pathlib import Path
 import statsmodels.formula.api as smf
 
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 RELATED_CODES = {'211', '212'}
 UNRELATED_CODES = {'221', '222'}
 TARGET_CODES = RELATED_CODES | UNRELATED_CODES
+
+density_df = pd.read_csv('data/stimuli_density.csv')
+related_density = density_df[density_df['condition'] == 'related']['density'].values
+unrelated_density = density_df[density_df['condition'] == 'unrelated']['density'].values
 
 rows = []
 for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
@@ -38,10 +43,19 @@ for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
         n400_chs = epochs.ch_names[:3]
     data = epochs.copy().crop(tmin=0.3, tmax=0.5).get_data(picks=n400_chs)
     amp = data.mean(axis=(1, 2)) * 1e6
+    
+    related_idx = 0
+    unrelated_idx = 0
     for i, event in enumerate(epochs.events):
         code_str = reverse_id[event[2]]
         condition = 'related' if code_str in RELATED_CODES else 'unrelated'
-        rows.append({'Subject': sub, 'N400_Amplitude': amp[i], 'Condition': condition})
+        if condition == 'related':
+            density = related_density[related_idx % len(related_density)]
+            related_idx += 1
+        else:
+            density = unrelated_density[unrelated_idx % len(unrelated_density)]
+            unrelated_idx += 1
+        rows.append({'Subject': sub, 'N400_Amplitude': amp[i], 'Condition': condition, 'density': density})
     logger.info(f'{sub}: {len(epochs)} epochs')
 
 df = pd.DataFrame(rows)
@@ -49,7 +63,8 @@ logger.info(df['Condition'].value_counts())
 logger.info(f'Total trials: {len(df)}, Subjects: {df["Subject"].nunique()}')
 logger.info(f'Related mean: {df[df.Condition=="related"]["N400_Amplitude"].mean():.3f} uV')
 logger.info(f'Unrelated mean: {df[df.Condition=="unrelated"]["N400_Amplitude"].mean():.3f} uV')
+logger.info(f'Density mean: {df["density"].mean():.3f}')
 
-model = smf.mixedlm('N400_Amplitude ~ Condition', df, groups=df['Subject'])
+model = smf.mixedlm('N400_Amplitude ~ Condition + density', df, groups=df['Subject'])
 result = model.fit()
 logger.info(result.summary())
