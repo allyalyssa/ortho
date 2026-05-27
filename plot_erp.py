@@ -1,8 +1,11 @@
+import logging
 import mne
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 RELATED_CODES = {'211', '212'}
 UNRELATED_CODES = {'221', '222'}
@@ -35,7 +38,7 @@ for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
         all_related.append(epochs[list(related_keys.keys())].average())
     if unrelated_keys:
         all_unrelated.append(epochs[list(unrelated_keys.keys())].average())
-    print(f'{sub}: done')
+    logger.info(f'{sub}: done')
 
 grand_related = mne.grand_average(all_related)
 grand_unrelated = mne.grand_average(all_unrelated)
@@ -61,4 +64,4 @@ ax.legend()
 ax.set_xlim(-200, 800)
 plt.tight_layout()
 plt.savefig('figures/erp_waveform.png', dpi=300)
-print('Saved figures/erp_waveform.png')
+logger.info('Saved figures/erp_waveform.png')

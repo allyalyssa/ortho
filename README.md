@@ -1,120 +1,54 @@
-# Orthographic Neighborhood Density & EEG Data Analysis
+# N400 ERP Analysis: Semantic Relatedness and Orthographic Density
 
-Python scripts for psycholinguistics research including orthographic neighborhood density analysis and EEG dataset downloading from OpenNeuro.
+Secondary analysis of the ERP CORE dataset (Kappenman et al., 2021) 
+examining N400 amplitude as a function of semantic relatedness in a 
+word-pair judgment task.
 
-## Overview
+## Result
 
-This script:
-1. Extracts 4-letter English nouns from WordNet
-2. Calculates Levenshtein distance between all word pairs
-3. Computes orthographic neighborhood density (number of neighbors at distance ≤ 1)
-4. Categorizes words into 'high density' and 'low density' groups based on median split
-5. Saves results to `neighborhood_density_results.txt`
+Unrelated target words elicited significantly more negative N400 
+amplitudes than related targets (β = -1.114 µV, z = -3.613, p < 0.001) 
+across 27 subjects and 1,757 trials. This replicates the canonical N400 
+effect and establishes a baseline for subsequent analysis of orthographic 
+neighborhood density as a continuous predictor.
 
-## Installation
+## Dataset
 
-Install the required dependencies:
+ERP CORE N400 paradigm (Kappenman et al., 2021). 40 participants 
+completed a word-pair judgment task. Target words were semantically 
+related (codes 211, 212) or unrelated (codes 221, 222) to a preceding 
+prime. Raw data available at https://osf.io/thsqg/
 
-```bash
-pip install -r requirements.txt
-```
+Citation: Kappenman, E. S., Farrens, J. L., Zhang, W., Stewart, A. X., 
+& Luck, S. J. (2021). ERP CORE: An open resource for human 
+event-related potential research. NeuroImage, 225, 117465.
 
-## Scripts
+## Pipeline
 
-### 1. Orthographic Density Analysis (`orthographic_density.py`)
+1. fetch_data.py — downloads raw EEG from OSF via hu-neuro-pipeline
+2. preprocess_eeg.py — bandpass filter 0.1–20Hz, epoch −200–800ms, 
+   baseline −200–0ms, artifact rejection >100µV
+3. analyze_n400.py — extracts N400 amplitude (300–500ms, Cz/CPz/Pz), 
+   fits linear mixed-effects model
+4. plot_erp.py — generates grand average ERP waveform and topographic 
+   difference map
+5. orthographic_density.py — computes orthographic neighborhood density 
+   for stimulus words using rapidfuzz
 
-Analyzes orthographic neighborhood density of 4-letter English nouns.
+## Statistics
 
-**Usage:**
-```bash
-python orthographic_density.py
-```
+Linear mixed-effects model (statsmodels MixedLM):
+- Fixed effect: Condition (related vs. unrelated)
+- Random effect: Subject intercept
+- N = 1,757 trials, 27 subjects
+- Result: β = -1.114, z = -3.613, p < 0.001
 
-**What it does:**
-1. Extracts 4-letter English nouns from WordNet
-2. Calculates Levenshtein distance between all word pairs
-3. Computes orthographic neighborhood density (number of neighbors at distance ≤ 1)
-4. Categorizes words into 'high density' and 'low density' groups based on median split
-5. Saves results to `neighborhood_density_results.txt`
+## Next Steps
 
-### 2. EEG Data Download (`download_verbal_eeg.py`)
+Adding orthographic neighborhood density as a continuous predictor 
+to test whether lexical competition modulates N400 amplitude 
+independent of semantic relatedness.
 
-Downloads EEG datasets from OpenNeuro in BIDS format for psycholinguistics research.
+## Requirements
 
-**Usage:**
-```bash
-python download_verbal_eeg.py
-```
-
-**What it does:**
-- Downloads EEG data from OpenNeuro using openneuro-py
-- Downloads single-subject data in BIDS (Brain Imaging Data Structure) format
-- Includes raw EEG files (.vhdr, .eeg, .vmkr) and events.tsv for trial mapping
-- Organizes data in `data/sub-01/` structure
-
-**Currently Downloaded:**
-- **Dataset:** ds003620 (Runabout: Auditory oddball processing)
-- **Task:** Oddball paradigm (not word recognition, but useful for testing pipeline)
-- **Files:** Raw EEG data, events.tsv, channel info, electrode locations
-- **Location:** `data/sub-01/eeg/`
-
-**Note:** The current dataset is an auditory oddball task. For verbal memory/word recognition tasks, search OpenNeuro for datasets like:
-- ERP-CORE (ds000247) - N400 semantic processing
-- Language production datasets
-- Lexical decision tasks
-
-**Custom usage:**
-```python
-from download_verbal_eeg import download_single_subject_eeg
-
-# Download specific dataset
-download_single_subject_eeg(
-    dataset_id="ds000247",  # Change to desired dataset
-    subject_id="01",
-    target_dir="./data",
-    tag="1.0.2"
-)
-```
-
-See `DOWNLOAD_SUMMARY.md` for details on the downloaded data and how to find verbal memory datasets.
-
-## Output
-
-### Orthographic Density Script
-- **Console**: Summary statistics and categorized word lists
-- **File**: `neighborhood_density_results.txt` with complete results including:
-  - Total words analyzed
-  - Median neighborhood density
-  - High density group (words with neighbors ≥ median)
-  - Low density group (words with neighbors < median)
-
-### EEG Download Script
-- **Console**: Download progress and file structure overview
-- **Directory**: BIDS-formatted EEG data in `./eeg_data/` with:
-  - Raw EEG data files (.fif, .set, .vhdr, etc.)
-  - Channel information
-  - Event markers
-  - Task metadata
-  - Dataset description
-
-## Key Concepts
-
-- **Orthographic Neighborhood Density**: The number of words that can be formed by changing one letter (Levenshtein distance = 1)
-- **Levenshtein Distance**: A string metric for measuring the difference between two sequences
-- **Median Split**: Words are categorized based on whether their density is above or below the median value
-- **BIDS Format**: Brain Imaging Data Structure - a standard for organizing neuroimaging data
-- **OpenNeuro**: A free and open platform for sharing neuroimaging data
-
-## Example Output
-
-```
-HIGH DENSITY WORDS (neighbors >= median)
-word: 15 neighbors
-word: 14 neighbors
-...
-
-LOW DENSITY WORDS (neighbors < median)
-word: 2 neighbors
-word: 1 neighbors
-...
-```
+pip install mne hu-neuro-pipeline statsmodels rapidfuzz pandas numpy matplotlib

@@ -30,7 +30,7 @@ def process_single_subject(subject_id: str, data_dir: Path = Path("./data")) -> 
     
     try:
         raw = mne.io.read_raw_eeglab(str(eeg_file), preload=True, verbose=False, montage_units='mm')
-    except Exception as e:
+    except (IOError, ValueError) as e:
         logger.error(f"Error loading sub-{subject_id}: {e}")
         return False
     

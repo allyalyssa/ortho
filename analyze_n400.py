@@ -1,8 +1,11 @@
-﻿import mne
+﻿import logging
+import mne
 import pandas as pd
 import numpy as np
 from pathlib import Path
 import statsmodels.formula.api as smf
+
+logger = logging.getLogger(__name__)
 
 RELATED_CODES = {'211', '212'}
 UNRELATED_CODES = {'221', '222'}
@@ -19,7 +22,7 @@ for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
     events, event_id = mne.events_from_annotations(raw, verbose=False)
     target_id = {k: v for k, v in event_id.items() if str(k) in TARGET_CODES}
     if not target_id:
-        print(f'{sub}: no target events found, skipping')
+        logger.warning(f'{sub}: no target events found, skipping')
         continue
     reverse_id = {v: str(k) for k, v in target_id.items()}
     epochs = mne.Epochs(raw, events, event_id=target_id,
@@ -28,7 +31,7 @@ for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
                         reject=dict(eeg=100e-6),
                         preload=True, verbose=False)
     if len(epochs) < 30:
-        print(f'Excluding {sub}: only {len(epochs)} epochs')
+        logger.warning(f'Excluding {sub}: only {len(epochs)} epochs')
         continue
     n400_chs = [c for c in epochs.ch_names if c in ['Cz', 'CPz', 'Pz']]
     if not n400_chs:
@@ -39,14 +42,14 @@ for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
         code_str = reverse_id[event[2]]
         condition = 'related' if code_str in RELATED_CODES else 'unrelated'
         rows.append({'Subject': sub, 'N400_Amplitude': amp[i], 'Condition': condition})
-    print(f'{sub}: {len(epochs)} epochs')
+    logger.info(f'{sub}: {len(epochs)} epochs')
 
 df = pd.DataFrame(rows)
-print(df['Condition'].value_counts())
-print(f'Total trials: {len(df)}, Subjects: {df["Subject"].nunique()}')
-print(f'Related mean: {df[df.Condition=="related"]["N400_Amplitude"].mean():.3f} uV')
-print(f'Unrelated mean: {df[df.Condition=="unrelated"]["N400_Amplitude"].mean():.3f} uV')
+logger.info(df['Condition'].value_counts())
+logger.info(f'Total trials: {len(df)}, Subjects: {df["Subject"].nunique()}')
+logger.info(f'Related mean: {df[df.Condition=="related"]["N400_Amplitude"].mean():.3f} uV')
+logger.info(f'Unrelated mean: {df[df.Condition=="unrelated"]["N400_Amplitude"].mean():.3f} uV')
 
 model = smf.mixedlm('N400_Amplitude ~ Condition', df, groups=df['Subject'])
 result = model.fit()
-print(result.summary())
+logger.info(result.summary())
