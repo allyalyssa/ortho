@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ for condition in ['related', 'unrelated']:
 
 ax.set_xlabel('Orthographic Neighborhood Density')
 ax.set_ylabel('Word Index')
-ax.set_title('Orthographic Density by Condition')
+ax.set_title('Orthographic Density by Condition (Real ERP-CORE Stimuli)')
 ax.legend()
 ax.grid(True, alpha=0.3)
 plt.tight_layout()
