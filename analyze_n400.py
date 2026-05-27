@@ -43,7 +43,6 @@ for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
         n400_chs = epochs.ch_names[:3]
     data = epochs.copy().crop(tmin=0.3, tmax=0.5).get_data(picks=n400_chs)
     amp = data.mean(axis=(1, 2)) * 1e6
-    
     related_idx = 0
     unrelated_idx = 0
     for i, event in enumerate(epochs.events):
@@ -59,12 +58,42 @@ for sub_dir in sorted(Path('data/erpcore/N400').glob('sub-*')):
     logger.info(f'{sub}: {len(epochs)} epochs')
 
 df = pd.DataFrame(rows)
-logger.info(df['Condition'].value_counts())
 logger.info(f'Total trials: {len(df)}, Subjects: {df["Subject"].nunique()}')
-logger.info(f'Related mean: {df[df.Condition=="related"]["N400_Amplitude"].mean():.3f} uV')
-logger.info(f'Unrelated mean: {df[df.Condition=="unrelated"]["N400_Amplitude"].mean():.3f} uV')
-logger.info(f'Density mean: {df["density"].mean():.3f}')
 
-model = smf.mixedlm('N400_Amplitude ~ Condition + density', df, groups=df['Subject'])
-result = model.fit()
-logger.info(result.summary())
+# Model 1: main effects
+logger.info('--- Model 1: Condition + density ---')
+m1 = smf.mixedlm('N400_Amplitude ~ Condition + density', df, groups=df['Subject']).fit()
+logger.info(m1.summary())
+
+# Model 2: interaction
+logger.info('--- Model 2: Condition * density ---')
+m2 = smf.mixedlm('N400_Amplitude ~ Condition * density', df, groups=df['Subject']).fit()
+logger.info(m2.summary())
+
+# Model 3: permutation test on density coefficient
+logger.info('--- Permutation test on density (n=2000) ---')
+observed_beta = m1.fe_params['density']
+null_betas = []
+rng = np.random.default_rng(42)
+for _ in range(2000):
+    df['density_perm'] = rng.permutation(df['density'].values)
+    m_perm = smf.mixedlm('N400_Amplitude ~ Condition + density_perm', df, groups=df['Subject']).fit(disp=False)
+    null_betas.append(m_perm.fe_params['density_perm'])
+null_betas = np.array(null_betas)
+perm_p = np.mean(np.abs(null_betas) >= np.abs(observed_beta))
+logger.info(f'Observed density beta: {observed_beta:.3f}')
+logger.info(f'Permutation p-value: {perm_p:.4f}')
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.hist(null_betas, bins=50, color='gray', alpha=0.7, label='Null distribution')
+ax.axvline(observed_beta, color='red', linewidth=2, label=f'Observed beta={observed_beta:.3f}')
+ax.set_xlabel('Density coefficient')
+ax.set_ylabel('Count')
+ax.set_title(f'Permutation test: density effect (permutation p={perm_p:.4f})')
+ax.legend()
+plt.tight_layout()
+plt.savefig('figures/permutation_density.png', dpi=300)
+logger.info('Saved figures/permutation_density.png')
