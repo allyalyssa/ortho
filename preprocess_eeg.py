@@ -38,6 +38,36 @@ def process_single_subject(subject_id: str, data_dir: Path = Path("./data")) -> 
     
     raw.filter(l_freq=0.1, h_freq=20, verbose=False)
     
+    # ICA for artifact removal
+    logger.info(f"Fitting ICA with n_components=15")
+    ica = mne.preprocessing.ICA(n_components=15, random_state=42, max_iter=800)
+    ica.fit(raw, verbose=False)
+    
+    # Detect EOG channels
+    eog_channels = [ch for ch in raw.ch_names if 'EOG' in ch.upper() or 'HEOG' in ch.upper() or 'VEOG' in ch.upper()]
+    
+    if eog_channels:
+        logger.info(f"Found EOG channels: {eog_channels}")
+        eog_indices, eog_scores = ica.find_bads_eog(raw, ch_name=eog_channels[0], verbose=False)
+        logger.info(f"Detected {len(eog_indices)} EOG-related components")
+    else:
+        logger.warning("No EOG channels found, using correlation-based detection")
+        # Use correlation with frontal channels as fallback
+        frontal_channels = [ch for ch in raw.ch_names if 'Fp' in ch or 'Fz' in ch]
+        if frontal_channels:
+            eog_indices, eog_scores = ica.find_bads_eog(raw, ch_name=frontal_channels[0], verbose=False)
+            logger.info(f"Detected {len(eog_indices)} frontal-correlated components")
+        else:
+            eog_indices = []
+            logger.warning("No frontal channels found, skipping EOG detection")
+    
+    if eog_indices:
+        ica.exclude = eog_indices
+        raw = ica.apply(raw, verbose=False)
+        logger.info(f"Removed {len(eog_indices)} ICA components")
+    else:
+        logger.info("No ICA components removed")
+    
     events_files = list(subject_dir.glob("*_events.tsv"))
     
     if not events_files:
@@ -78,17 +108,16 @@ def process_single_subject(subject_id: str, data_dir: Path = Path("./data")) -> 
     
     epochs.apply_baseline((-0.2, 0))
     
-    total_epochs = len(epochs.drop_log)
-    usable_epochs = len(epochs)
-    rejected_epochs = total_epochs - usable_epochs
+    usable_epochs_after_ica = len(epochs)
+    rejected_epochs_after_ica = len(epochs.drop_log) - usable_epochs_after_ica
     
-    output_dir = data_dir / "derivatives" / "preprocessed"
+    output_dir = data_dir / "derivatives" / "preprocessed_ica"
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    output_file = output_dir / f"sub-{subject_id}_N400_preprocessed-epo.fif"
+    output_file = output_dir / f"sub-{subject_id}_N400_ica-epo.fif"
     epochs.save(output_file, overwrite=True, verbose=False)
     
-    logger.info(f"sub-{subject_id}: {usable_epochs} usable epochs, {rejected_epochs} rejected")
+    logger.info(f"sub-{subject_id}: {usable_epochs_after_ica} usable epochs after ICA, {rejected_epochs_after_ica} rejected")
     
     return True
 
