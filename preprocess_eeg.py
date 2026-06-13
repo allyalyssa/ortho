@@ -68,29 +68,22 @@ def process_single_subject(subject_id: str, data_dir: Path = Path("./data")) -> 
     else:
         logger.info("No ICA components removed")
     
-    events_files = list(subject_dir.glob("*_events.tsv"))
+    # Get events from annotations (ERP CORE data has proper event codes)
+    events, event_id = mne.events_from_annotations(raw, verbose=False)
     
-    if not events_files:
-        logger.warning(f"No events file found for sub-{subject_id}, using MNE events")
-        events_array = mne.find_events(raw, stim_channel='STI 014', verbose=False)
-        event_id_dict = {'stimulus': 1, 'response': 2}
-    else:
-        events_file = events_files[0]
-        events_df = pd.read_csv(events_file, sep='\t')
-        
-        sfreq = raw.info['sfreq']
-        events_df['sample'] = (events_df['onset'] * sfreq).astype(int)
-        
-        unique_types = events_df['trial_type'].unique() if 'trial_type' in events_df.columns else events_df['value'].unique()
-        event_id_dict = {str(t): i+1 for i, t in enumerate(unique_types)}
-        reverse_event_id_map = {t: i+1 for i, t in enumerate(unique_types)}
-        
-        events_df['event_id'] = events_df['trial_type'].map(reverse_event_id_map) if 'trial_type' in events_df.columns else events_df['value'].map(reverse_event_id_map)
-        
-        events_array = []
-        for idx, row in events_df.iterrows():
-            events_array.append([row['sample'], 0, row['event_id']])
-        events_array = np.array(events_array, dtype=int)
+    # Filter for N400 target codes only
+    RELATED_CODES = {'211', '212'}
+    UNRELATED_CODES = {'221', '222'}
+    TARGET_CODES = RELATED_CODES | UNRELATED_CODES
+    
+    target_id = {k: v for k, v in event_id.items() if str(k) in TARGET_CODES}
+    
+    if not target_id:
+        logger.warning(f"No target events found for sub-{subject_id}")
+        return False
+    
+    events_array = events
+    event_id_dict = target_id
     
     reject = dict(eeg=100e-6)
     
